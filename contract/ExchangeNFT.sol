@@ -50,11 +50,7 @@ contract ExchangeNFT is Ownable {
         uint256 price;
         Status status;        
     }
-    
-    mapping(owner => tokenID => BoxItem[]) list
-    // 1 person: 4 normalx1, 2 prices
-// list[owner][1][0] // 1000
-// list[owner][1][1].price //200 
+
     BoxAttribute public tokenIDToAttribute[4] = [
         BoxAttribute(BoxType.BOX_NORMAL, RarityNumber.X1),
         BoxAttribute(BoxType.BOX_NORMAL, RarityNumber.X10),
@@ -62,14 +58,22 @@ contract ExchangeNFT is Ownable {
         BoxAttribute(BoxType.BOX_RARE, RarityNumber.X10),
     ];
 
-    BoxItem public BoxItemList[];
+    // BoxID => BoxItem value
+    mapping(uint256 => BoxItem) boxItem;
+
+    // Status => BoxIDs
+    mapping(Status => uint256[]) boxItemListByStatus;
+
+    // owner => tokenID => BoxIDs
+    mapping(address => uint256 => uint256[]) public boxIDsOf;
 
     constructor(address _BoxNFT) {
         BoxNFT = _BoxNFT;
     }
 
-    function sell(uint256 _tokenID, uint256 _price, uint256 _amount) external {
-        require(INFTMysteryBox(BoxNFT).balanceOf(msg.sender, _tokenID) >= _amount, "ExchangeNFT: balance is not sufficient");
+    function sellAdmin(uint256 _tokenID, uint256 _value) external onlyOwner {
         INFTMysteryBox(BoxNFT).safeTransferFrom(msg.sender, address(this), _tokenID, _amount, '');
+        // change status
+        
     }
 }
