@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract Exchange is ERC1155Holder, Ownable{
+contract Exchange is ERC1155Holder, Ownable {
     using EnumerableSet for EnumerableSet.UintSet;
     using Counters for Counters.Counter;
 
@@ -32,7 +32,7 @@ contract Exchange is ERC1155Holder, Ownable{
         Order order;
         uint256 orderId;
     }
-    
+
     // orderID => order
     mapping(uint256 => Order) orders;
 
@@ -48,7 +48,11 @@ contract Exchange is ERC1155Holder, Ownable{
         _ERC20Token = ERC20Token_;
     }
 
-    function getAllOrderByStatus(Status _status) external view returns (OrderWithID[] memory) {
+    function getAllOrderByStatus(Status _status)
+        external
+        view
+        returns (OrderWithID[] memory)
+    {
         uint256 len = orderIdsByStatus[_status].length();
         OrderWithID[] memory orderList = new OrderWithID[](len);
         for (uint256 i = 0; i < len; i++) {
@@ -58,26 +62,53 @@ contract Exchange is ERC1155Holder, Ownable{
         return orderList;
     }
 
-    // sell function: 
-    function sell(uint256 _tokenId, uint256 _amount, uint256 _pricePerBox) external {
-        require(INFTMysteryBox(_NFTMysteryBox).balanceOf(msg.sender, _tokenId) >= _amount, 'Not sufficient boxes');
+    // sell function:
+    function sell(
+        uint256 _tokenId,
+        uint256 _amount,
+        uint256 _pricePerBox
+    ) external {
+        require(
+            INFTMysteryBox(_NFTMysteryBox).balanceOf(msg.sender, _tokenId) >=
+                _amount,
+            "Not sufficient boxes"
+        );
 
         // create order
         _orderIdCounter.increment();
         uint256 orderId = _orderIdCounter.current();
 
-        Order memory item = Order(_tokenId, msg.sender, _amount, _amount, _pricePerBox); 
+        Order memory item = Order(
+            _tokenId,
+            msg.sender,
+            _amount,
+            _amount,
+            _pricePerBox
+        );
         orders[orderId] = item;
 
         orderIdsByStatus[Status.SALE].add(orderId);
 
-        INFTMysteryBox(_NFTMysteryBox).safeTransferFrom(msg.sender, address(this), _tokenId, _amount, '');
+        INFTMysteryBox(_NFTMysteryBox).safeTransferFrom(
+            msg.sender,
+            address(this),
+            _tokenId,
+            _amount,
+            ""
+        );
     }
 
     function buy(uint256 _orderId) external {
         // check order status
-        require(orderIdsByStatus[Status.SALE].contains(_orderId), "Order 's status is not SALE");
-        require(IERC20(_ERC20Token).balanceOf(msg.sender) >= orders[_orderId].pricePerBox, 'Buyer does not have enough ERC20 tokens');
+        require(
+            orderIdsByStatus[Status.SALE].contains(_orderId),
+            "Order 's status is not SALE"
+        );
+        require(
+            IERC20(_ERC20Token).balanceOf(msg.sender) >=
+                orders[_orderId].pricePerBox,
+            "Buyer does not have enough ERC20 tokens"
+        );
 
         orders[_orderId].remainingAmount = orders[_orderId].remainingAmount - 1;
         if (orders[_orderId].remainingAmount == 0) {
@@ -85,7 +116,35 @@ contract Exchange is ERC1155Holder, Ownable{
             orderIdsByStatus[Status.SOLD].add(_orderId);
         }
 
-        IERC20(_ERC20Token).transferFrom(msg.sender, orders[_orderId].owner, orders[_orderId].pricePerBox);
-        INFTMysteryBox(_NFTMysteryBox).safeTransferFrom(address(this), msg.sender, orders[_orderId].tokenId, 1, '');
+        IERC20(_ERC20Token).transferFrom(
+            msg.sender,
+            orders[_orderId].owner,
+            orders[_orderId].pricePerBox
+        );
+        INFTMysteryBox(_NFTMysteryBox).safeTransferFrom(
+            address(this),
+            msg.sender,
+            orders[_orderId].tokenId,
+            1,
+            ""
+        );
+    }
+
+    function cancelSell(uint256 _orderId) external {
+        require(orders[_orderId].amount > 0, "Order doesn't exit");
+        require(
+            orderIdsByStatus[Status.SALE].contains(_orderId),
+            "Order 's status is not SALE"
+        );
+
+        INFTMysteryBox(_NFTMysteryBox).safeTransferFrom(
+            address(this),
+            msg.sender,
+            orders[_orderId].tokenId,
+            orders[_orderId].remainingAmount,
+            ""
+        );
+        orderIdsByStatus[Status.SALE].remove(_orderId);
+        delete orders[_orderId];
     }
 }
