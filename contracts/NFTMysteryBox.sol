@@ -1324,11 +1324,15 @@ abstract contract ERC1155Burnable is ERC1155 {
 pragma solidity ^0.8.0;
 
 
-
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 
 
 contract NFTMysteryBox is ERC1155, Ownable, Pausable, ERC1155Burnable, ERC1155Supply {
+    using EnumerableSet for EnumerableSet.UintSet;
+
+    EnumerableSet.UintSet private _allTokens;
+
     constructor() ERC1155("") {}
 
     function setURI(string memory newuri) public onlyOwner {
@@ -1357,11 +1361,41 @@ contract NFTMysteryBox is ERC1155, Ownable, Pausable, ERC1155Burnable, ERC1155Su
         _mintBatch(to, ids, amounts, data);
     }
 
+    function getAllTokenIds() external view returns (uint256[] memory) {
+        uint256 len = _allTokens.length();
+        uint256[] memory allTokens = new uint256[](len);
+        for (uint256 i = 0; i < len; i++) {
+            allTokens[i] = _allTokens.at(i);
+        }
+        return allTokens;
+    }
+
     function _beforeTokenTransfer(address operator, address from, address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data)
         internal
         whenNotPaused
         override(ERC1155, ERC1155Supply)
     {
-        super._beforeTokenTransfer(operator, from, to, ids, amounts, data);
+        for (uint256 i = 0; i < ids.length; i++) {
+            uint256 amount = amounts[i];
+            if (amount > 0) {
+                uint256 id = ids[i];
+                if (from == address(0)) {
+                    _addTokenToAllTokens(id);
+                }
+                if ((to == address(0)) && (amount == totalSupply(id))) {
+                    _removeTokenFromAllTokens(id);
+                }
+            }
+        }
+
+        super._beforeTokenTransfer(operator, from, to, ids, amounts, data); // this update the total supply of each token type
+    }
+
+    function _addTokenToAllTokens(uint256 tokenId) private {
+        _allTokens.add(tokenId);
+    }
+
+    function _removeTokenFromAllTokens(uint256 tokenId) private {
+        _allTokens.remove(tokenId);
     }
 }

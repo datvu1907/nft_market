@@ -109,4 +109,6 @@ interface INFTMysteryBox {
     function unpause() external;
 
     function uri(uint256) external view returns (string memory);
+
+    function getAllTokenIds() external view returns (uint256[] memory);
 }
