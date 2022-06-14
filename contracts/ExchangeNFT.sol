@@ -17,6 +17,11 @@ contract Exchange is ERC1155Holder, Ownable {
         SOLD
     }
 
+    enum UserStatus {
+        SELL,
+        BUY
+    }
+
     // event CreateSellOrder(uint256 orderId, address indexed seller, uint256 tokenId, uint256 amount, uint256 price);
     // event Buy(uint256 orderId, );
 
@@ -26,6 +31,16 @@ contract Exchange is ERC1155Holder, Ownable {
         uint256 amount;
         uint256 remainingAmount;
         uint256 pricePerBox;
+    }
+
+    struct History {
+        uint256 tokenId;
+        address from;
+        address to;
+        uint256 amount;
+        uint256 pricePerBox;
+        uint256 time;
+        UserStatus status;
     }
 
     struct OrderWithID {
@@ -38,6 +53,8 @@ contract Exchange is ERC1155Holder, Ownable {
 
     // Status => BoxIDs
     mapping(Status => EnumerableSet.UintSet) orderIdsByStatus;
+
+    mapping(address => History[]) listUserHistory;
 
     Counters.Counter private _orderIdCounter;
     address private _NFTMysteryBox;
@@ -115,6 +132,34 @@ contract Exchange is ERC1155Holder, Ownable {
             orderIdsByStatus[Status.SALE].remove(_orderId);
             orderIdsByStatus[Status.SOLD].add(_orderId);
         }
+        address owner = orders[_orderId].owner;
+        uint256 timeCreate = block.timestamp;
+
+        //update history for seller
+        listUserHistory[owner].push(
+            History(
+                orders[_orderId].tokenId,
+                owner,
+                msg.sender,
+                1,
+                orders[_orderId].pricePerBox,
+                timeCreate,
+                UserStatus.SELL
+            )
+        );
+
+        // update history for buyer
+        listUserHistory[msg.sender].push(
+            History(
+                orders[_orderId].tokenId,
+                owner,
+                msg.sender,
+                1,
+                orders[_orderId].pricePerBox,
+                timeCreate,
+                UserStatus.BUY
+            )
+        );
 
         IERC20(_ERC20Token).transferFrom(
             msg.sender,
@@ -146,5 +191,23 @@ contract Exchange is ERC1155Holder, Ownable {
         );
         orderIdsByStatus[Status.SALE].remove(_orderId);
         delete orders[_orderId];
+    }
+
+    // return list token id, amount per token and user history
+    function getListUserToken()
+        external
+        view
+        returns (uint256[] memory, uint256[] memory, History[] memory)
+    {
+        uint256[] memory listTokenId = INFTMysteryBox(_NFTMysteryBox)
+            .getAllTokenIds();
+        uint256[] memory listAmountToken = new uint256[](listTokenId.length);
+        for (uint256 i = 0; i < listTokenId.length; i++) {
+            listAmountToken[i] = INFTMysteryBox(_NFTMysteryBox).balanceOf(
+                msg.sender,
+                listTokenId[i]
+            );
+        }
+        return (listTokenId, listAmountToken, listUserHistory[msg.sender]);
     }
 }
