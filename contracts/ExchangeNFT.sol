@@ -8,6 +8,7 @@ import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
+
 contract Exchange is ERC1155Holder, Ownable {
     using EnumerableSet for EnumerableSet.UintSet;
     using Counters for Counters.Counter;
@@ -146,5 +147,14 @@ contract Exchange is ERC1155Holder, Ownable {
         );
         orderIdsByStatus[Status.SALE].remove(_orderId);
         delete orders[_orderId];
+    }
+    function getListUserToken() external view returns(uint256[] memory, uint256[] memory){
+        uint256[] memory listTokenId =  INFTMysteryBox(_NFTMysteryBox).getAllTokenIds();
+        uint256[] memory listAmountToken= new uint256[](listTokenId.length);
+        for(uint256 i = 0; i < listTokenId.length; i++){
+            listAmountToken[i] = INFTMysteryBox(_NFTMysteryBox).balanceOf(msg.sender, listTokenId[i]);
+        }
+
+        return (listTokenId, listAmountToken);
     }
 }
