@@ -5,13 +5,13 @@ import "./libraries/TransferHelper.sol";
 import "./interfaces/INFTMysteryBox.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+// import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 
 contract ExchangeMH is ERC1155Holder, Ownable {
-    using EnumerableSet for EnumerableSet.UintSet;
+    // using EnumerableSet for EnumerableSet.UintSet;
     using Counters for Counters.Counter;
 
     enum Status {
@@ -116,6 +116,10 @@ contract ExchangeMH is ERC1155Holder, Ownable {
             msg.value == orders[_orderId].pricePerBox,
             "Buyer did not send correct SPC amount"
         );
+        require(
+            orders[_orderId].currency == address(0),
+            "Order must be paid by native currency"
+        );
 
         orders[_orderId].remainingAmount = orders[_orderId].remainingAmount - 1;
         if (orders[_orderId].remainingAmount == 0) {
@@ -152,6 +156,10 @@ contract ExchangeMH is ERC1155Holder, Ownable {
             IERC20(_ERC20Token).balanceOf(msg.sender) >=
                 orders[_orderId].pricePerBox,
             "Buyer does not have enough ERC20 tokens"
+        );
+        require(
+            orders[_orderId].currency != address(0),
+            "Order must not be paid by native currency"
         );
 
         orders[_orderId].remainingAmount = orders[_orderId].remainingAmount - 1;
