@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 // import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-
+import "./libraries/TransferHelper.sol";
 
 contract ExchangeMH is ERC1155Holder, Ownable {
     // using EnumerableSet for EnumerableSet.UintSet;
@@ -22,6 +22,7 @@ contract ExchangeMH is ERC1155Holder, Ownable {
     event CreateSellOrder(uint256 _orderId, address indexed _seller, uint256 _tokenId, uint256 _amount, uint256 _pricePerBox);
     event Buy(uint256 _orderId, address indexed _buyer, uint256 _tokenId, uint256 _amount, uint256 _pricePerBox);
     event CancelSellOrder(uint256 _orderId, address indexed _seller, uint256 _tokenId, uint256 _amount, uint256 _remainingAmount, uint256 _pricePerBox);
+    event AcceptOffer(address _seller, address _buyer, uint256 _tokenId, uint256 _amount, uint256 _price);
 
     struct Order {
         uint256 tokenId;
@@ -210,5 +211,23 @@ contract ExchangeMH is ERC1155Holder, Ownable {
         delete orders[_orderId];
 
         emit CancelSellOrder(_orderId, msg.sender, orders[_orderId].tokenId, orders[_orderId].amount, orders[_orderId].remainingAmount, orders[_orderId].pricePerBox);
+    }
+    function acceptOffer(uint256 _tokenId, uint256 _amount, uint256 _pricePerBox, address _userOffer) external {
+        require(INFTMysteryBox(_NFTMysteryBox).balanceOf(msg.sender, _tokenId) >= _amount, 'Not sufficient boxes');
+
+        IERC20(_ERC20Token).transferFrom(
+            _userOffer,
+            msg.sender,
+            _pricePerBox * _amount
+        );
+
+         INFTMysteryBox(_NFTMysteryBox).safeTransferFrom(
+            msg.sender,
+            _userOffer,
+            _tokenId,
+            _amount,
+            ""
+        );
+        emit AcceptOffer(msg.sender, _userOffer, _tokenId, _amount, _pricePerBox * _amount);
     }
 }
