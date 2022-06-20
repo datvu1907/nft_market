@@ -1,4 +1,5 @@
 require('dotenv').config();
+require("hardhat-tracer");
 require("@nomiclabs/hardhat-waffle");
 
 /**
@@ -11,6 +12,7 @@ module.exports = {
       url: "https://testnet.spectre-rpc.com",
       chainId: 55,
       gasPrice: 20000000000,
+      // accounts: [process.env.SHARED_PRIV_KEY]
       accounts: {mnemonic: process.env.MNEMONIC || ''}
     }
   }
