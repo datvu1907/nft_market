@@ -27,6 +27,7 @@ describe("ExchangeMH", function () {
         const erc20tokenAmount = 1000;
         const boxAmount = 20;
 
+        await erc20token.connect(admin).addMinter(admin.address);
         await erc20token.connect(admin).mint(user2.address, erc20tokenAmount);
         await box.connect(admin).mint(user1.address, 1, boxAmount, '0x00');
 

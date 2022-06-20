@@ -35,7 +35,7 @@ contract ExchangeMH is ERC1155Holder, Ownable {
     }
 
     // orderID => order
-    mapping(uint256 => Order) orders;
+    mapping(uint256 => Order) private orders;
 
     Counters.Counter private _orderIdCounter;
     address private _NFTMysteryBox;
@@ -46,13 +46,17 @@ contract ExchangeMH is ERC1155Holder, Ownable {
         _ERC20Token = ERC20Token_;
     }
 
+    function getOrderInfo(uint256 _orderId) external view returns (Order memory) {
+        return orders[_orderId];
+    }
+
     // sell (currency: ERC20)
     function sell(
         uint256 _tokenId,
         uint256 _amount,
         uint256 _pricePerBox
-    ) external {
-        _sell(_tokenId, _amount, _pricePerBox, _ERC20Token);
+    ) external returns (uint256 orderId) {
+        orderId = _sell(_tokenId, _amount, _pricePerBox, _ERC20Token);
     }
 
     // sell (currency: native token)
@@ -60,8 +64,8 @@ contract ExchangeMH is ERC1155Holder, Ownable {
         uint256 _tokenId,
         uint256 _amount,
         uint256 _pricePerBox
-    ) external {
-        _sell(_tokenId, _amount, _pricePerBox, address(0));
+    ) external returns (uint256 orderId) {
+        orderId = _sell(_tokenId, _amount, _pricePerBox, address(0));
     } 
 
     // sell internal
@@ -70,7 +74,7 @@ contract ExchangeMH is ERC1155Holder, Ownable {
         uint256 _amount,
         uint256 _pricePerBox,
         address _currency
-    ) internal {
+    ) internal returns (uint256 orderId){
         require(
             INFTMysteryBox(_NFTMysteryBox).balanceOf(msg.sender, _tokenId) >=
                 _amount,
@@ -79,7 +83,7 @@ contract ExchangeMH is ERC1155Holder, Ownable {
 
         // create order
         _orderIdCounter.increment();
-        uint256 orderId = _orderIdCounter.current();
+        orderId = _orderIdCounter.current();
 
         Order memory order = Order(
             _tokenId,
