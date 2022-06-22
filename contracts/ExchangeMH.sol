@@ -2,13 +2,16 @@
 pragma solidity 0.8.0;
 
 import "./libraries/TransferHelper.sol";
-import "./interfaces/INFTMysteryBox.sol";
+// import "./interfaces/INFTMysteryBox.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 // import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./libraries/TransferHelper.sol";
+
+import "hardhat/console.sol";
 
 contract ExchangeMH is ERC1155Holder, Ownable {
     // using EnumerableSet for EnumerableSet.UintSet;
@@ -39,44 +42,24 @@ contract ExchangeMH is ERC1155Holder, Ownable {
 
     Counters.Counter private _orderIdCounter;
     address private _NFTMysteryBox;
-    address private _ERC20Token;
 
-    constructor(address NFTMysteryBox_, address ERC20Token_) {
+    constructor(address NFTMysteryBox_) {
         _NFTMysteryBox = NFTMysteryBox_;
-        _ERC20Token = ERC20Token_;
     }
 
     function getOrderInfo(uint256 _orderId) external view returns (Order memory) {
         return orders[_orderId];
     }
 
-    // sell (currency: ERC20)
+    // sell (note: set _currency to 0 if seller want buyer to pay in SPC)
     function sell(
-        uint256 _tokenId,
-        uint256 _amount,
-        uint256 _pricePerBox
-    ) external returns (uint256 orderId) {
-        orderId = _sell(_tokenId, _amount, _pricePerBox, _ERC20Token);
-    }
-
-    // sell (currency: native token)
-    function sellNative(
-        uint256 _tokenId,
-        uint256 _amount,
-        uint256 _pricePerBox
-    ) external returns (uint256 orderId) {
-        orderId = _sell(_tokenId, _amount, _pricePerBox, address(0));
-    } 
-
-    // sell internal
-    function _sell(
         uint256 _tokenId,
         uint256 _amount,
         uint256 _pricePerBox,
         address _currency
-    ) internal returns (uint256 orderId){
+    ) external returns (uint256 orderId){
         require(
-            INFTMysteryBox(_NFTMysteryBox).balanceOf(msg.sender, _tokenId) >=
+            IERC1155(_NFTMysteryBox).balanceOf(msg.sender, _tokenId) >=
                 _amount,
             "Not sufficient boxes"
         );
@@ -96,7 +79,7 @@ contract ExchangeMH is ERC1155Holder, Ownable {
         );
         orders[orderId] = order;
 
-        INFTMysteryBox(_NFTMysteryBox).safeTransferFrom(
+        IERC1155(_NFTMysteryBox).safeTransferFrom(
             msg.sender,
             address(this),
             _tokenId,
@@ -123,7 +106,7 @@ contract ExchangeMH is ERC1155Holder, Ownable {
         );
         require(
             orders[_orderId].currency == address(0),
-            "Order must be paid by native currency"
+            "Order requires being paid by erc20 currency, use buy() instead"
         );
 
         orders[_orderId].remainingAmount = orders[_orderId].remainingAmount - 1;
@@ -136,7 +119,7 @@ contract ExchangeMH is ERC1155Holder, Ownable {
             orders[_orderId].pricePerBox
         );
         
-        INFTMysteryBox(_NFTMysteryBox).safeTransferFrom(
+        IERC1155(_NFTMysteryBox).safeTransferFrom(
             address(this),
             msg.sender,
             orders[_orderId].tokenId,
@@ -158,13 +141,13 @@ contract ExchangeMH is ERC1155Holder, Ownable {
             "Order 's status is not SALE"
         );
         require(
-            IERC20(_ERC20Token).balanceOf(msg.sender) >=
-                orders[_orderId].pricePerBox,
-            "Buyer does not have enough ERC20 tokens"
+            orders[_orderId].currency != address(0),
+            "Order requires being paid by native currency, use buyNative() instead"
         );
         require(
-            orders[_orderId].currency != address(0),
-            "Order must not be paid by native currency"
+            IERC20(orders[_orderId].currency).balanceOf(msg.sender) >=
+                orders[_orderId].pricePerBox,
+            "Buyer does not have enough ERC20 tokens"
         );
 
         orders[_orderId].remainingAmount = orders[_orderId].remainingAmount - 1;
@@ -173,13 +156,13 @@ contract ExchangeMH is ERC1155Holder, Ownable {
         }
 
         TransferHelper.safeTransferFrom(
-            _ERC20Token,
+            orders[_orderId].currency,
             msg.sender,
             orders[_orderId].owner,
             orders[_orderId].pricePerBox
         );
 
-        INFTMysteryBox(_NFTMysteryBox).safeTransferFrom(
+        IERC1155(_NFTMysteryBox).safeTransferFrom(
             address(this),
             msg.sender,
             orders[_orderId].tokenId,
@@ -204,7 +187,7 @@ contract ExchangeMH is ERC1155Holder, Ownable {
             "Msg sender is not order 's owner"
         );
 
-        INFTMysteryBox(_NFTMysteryBox).safeTransferFrom(
+        IERC1155(_NFTMysteryBox).safeTransferFrom(
             address(this),
             msg.sender,
             orders[_orderId].tokenId,
@@ -216,16 +199,16 @@ contract ExchangeMH is ERC1155Holder, Ownable {
 
         emit CancelSellOrder(_orderId, msg.sender, orders[_orderId].tokenId, orders[_orderId].amount, orders[_orderId].remainingAmount, orders[_orderId].pricePerBox);
     }
-    function acceptOffer(uint256 _tokenId, uint256 _amount, uint256 _pricePerBox, address _userOffer) external {
-        require(INFTMysteryBox(_NFTMysteryBox).balanceOf(msg.sender, _tokenId) >= _amount, 'Not sufficient boxes');
+    function acceptOffer(uint256 _tokenId, uint256 _amount, uint256 _pricePerBox, address _currency, address _userOffer) external {
+        require(IERC1155(_NFTMysteryBox).balanceOf(msg.sender, _tokenId) >= _amount, 'Not sufficient boxes');
 
-        IERC20(_ERC20Token).transferFrom(
+        IERC20(_currency).transferFrom(
             _userOffer,
             msg.sender,
             _pricePerBox * _amount
         );
 
-         INFTMysteryBox(_NFTMysteryBox).safeTransferFrom(
+         IERC1155(_NFTMysteryBox).safeTransferFrom(
             msg.sender,
             _userOffer,
             _tokenId,
