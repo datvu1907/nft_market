@@ -35,11 +35,12 @@ describe("ExchangeMH", function () {
         await box.connect(user1).setApprovalForAll(exchange.address, true);
     });
 
-    describe('Sell', function () {
+    describe('Exchange functions', function () {
         it("Emit CreateSellOrder event", async function () {    
             await expect(exchange.connect(user1).sell(1, 15, 7, erc20token.address))
                 .to.emit(exchange, 'CreateSellOrder')
-                .withArgs(1, user1.address, 1, 15, 7);
+                .withArgs(1, user1.address, 1, 15, 7, erc20token.address);
+                // orderId, order.owner, order.tokenId, order.amount, order.price, order.currency
         });
 
         it("Buy and sell natively", async function () {
@@ -52,23 +53,33 @@ describe("ExchangeMH", function () {
             expect(balance).to.be.lt(ethers.utils.parseEther("9999.0"));
             expect(balance).to.be.gt(ethers.utils.parseEther("9998.99"));
         });
+
         it("Buy and sell using erc20", async function () {
             await exchange.connect(user1).sell(1, 15, 7, erc20token.address);
             await exchange.connect(user2).buy(1);
 
             expect(await erc20token.balanceOf(user2.address)).to.equal(1000-7);
-            expect(await box.balanceOf(user2.address, 1)).to.equal(1);
+            expect(await box.balanceOf(user2.address, 1)).to.equal(15);
         });
+
+        it("Order is deleted after buying", async function () {
+            await exchange.connect(user1).sell(1, 15, 7, erc20token.address);
+            await exchange.connect(user2).buy(1);
+
+            const orderInfo = await exchange.orders(1);
+            expect(orderInfo.owner).to.equal(ethers.constants.AddressZero);
+        });
+
         it("Revert if buyer pays ERC20 token but seller wants native token", async function () {
             const msgValue = ethers.utils.parseEther("1.0"); // price = 1 ether
-            // const options = await {value: msgValue};
             await exchange.connect(user1).sell(1, 15, msgValue, ethers.constants.AddressZero);
 
             await expect(exchange.connect(user2).buy(1))
                 .to.be.revertedWith("Order requires being paid by native currency, use buyNative() instead");
         });
+
         it("Revert if buyer pays native token but seller wants ERC20 token", async function () {
-            const msgValue = ethers.utils.parseEther("0.000000007"); // price = 1 ether
+            const msgValue = ethers.utils.parseEther("0.000000007"); // price = 7000000000 wei
             const options = await {value: msgValue};
             await exchange.connect(user1).sell(1, 15, 7000000000, erc20token.address);
 

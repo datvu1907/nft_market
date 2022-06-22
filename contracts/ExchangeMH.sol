@@ -17,28 +17,21 @@ contract ExchangeMH is ERC1155Holder, Ownable {
     // using EnumerableSet for EnumerableSet.UintSet;
     using Counters for Counters.Counter;
 
-    enum Status {
-        SALE,
-        SOLD
-    }
-
-    event CreateSellOrder(uint256 _orderId, address indexed _seller, uint256 _tokenId, uint256 _amount, uint256 _pricePerBox);
-    event Buy(uint256 _orderId, address indexed _buyer, uint256 _tokenId, uint256 _amount, uint256 _pricePerBox);
-    event CancelSellOrder(uint256 _orderId, address indexed _seller, uint256 _tokenId, uint256 _amount, uint256 _remainingAmount, uint256 _pricePerBox);
-    event AcceptOffer(address _seller, address _buyer, uint256 _tokenId, uint256 _amount, uint256 _price);
+    event CreateSellOrder(uint256 indexed _orderId, address indexed _seller, uint256 _tokenId, uint256 _amount, uint256 _price, address _currency);
+    event Buy(uint256 indexed _orderId, address indexed _buyer, address indexed seller, uint256 _tokenId, uint256 _amount, uint256 _price, address _currency);
+    event CancelSellOrder(uint256 indexed _orderId, address indexed _seller, uint256 _tokenId, uint256 _amount, uint256 _price, address _currency);
+    event AcceptOffer(address indexed _seller, address indexed _buyer, uint256 _tokenId, uint256 _amount, uint256 _price);
 
     struct Order {
         uint256 tokenId;
         address owner;
         uint256 amount;
-        uint256 remainingAmount;
-        uint256 pricePerBox;
+        uint256 price;
         address currency;
-        Status status;
     }
 
     // orderID => order
-    mapping(uint256 => Order) private orders;
+    mapping(uint256 => Order) public orders;
 
     Counters.Counter private _orderIdCounter;
     address private _NFTMysteryBox;
@@ -47,15 +40,11 @@ contract ExchangeMH is ERC1155Holder, Ownable {
         _NFTMysteryBox = NFTMysteryBox_;
     }
 
-    function getOrderInfo(uint256 _orderId) external view returns (Order memory) {
-        return orders[_orderId];
-    }
-
     // sell (note: set _currency to 0 if seller want buyer to pay in SPC)
     function sell(
         uint256 _tokenId,
         uint256 _amount,
-        uint256 _pricePerBox,
+        uint256 _price,
         address _currency
     ) external returns (uint256 orderId){
         require(
@@ -72,10 +61,8 @@ contract ExchangeMH is ERC1155Holder, Ownable {
             _tokenId,
             msg.sender,
             _amount,
-            _amount,
-            _pricePerBox,
-            _currency,
-            Status.SALE
+            _price,
+            _currency
         );
         orders[orderId] = order;
 
@@ -87,21 +74,17 @@ contract ExchangeMH is ERC1155Holder, Ownable {
             ""
         );
 
-        emit CreateSellOrder(orderId, order.owner, order.tokenId, order.amount, order.pricePerBox);
+        emit CreateSellOrder(orderId, order.owner, order.tokenId, order.amount, order.price, order.currency);
     }
 
     function buyNative(uint256 _orderId) external payable {
         // check order status
         require(
             orders[_orderId].owner != address(0),
-            "Order does not exist"
+            "Order does not exist or is deleted"
         );
         require(
-            orders[_orderId].status == Status.SALE,
-            "Order 's status is not SALE"
-        );
-        require(
-            msg.value == orders[_orderId].pricePerBox,
+            msg.value == orders[_orderId].price,
             "Buyer did not send correct SPC amount"
         );
         require(
@@ -109,36 +92,29 @@ contract ExchangeMH is ERC1155Holder, Ownable {
             "Order requires being paid by erc20 currency, use buy() instead"
         );
 
-        orders[_orderId].remainingAmount = orders[_orderId].remainingAmount - 1;
-        if (orders[_orderId].remainingAmount == 0) {
-            orders[_orderId].status = Status.SOLD;
-        }
-
         TransferHelper.safeTransferETH(
             orders[_orderId].owner, 
-            orders[_orderId].pricePerBox
+            orders[_orderId].price
         );
         
         IERC1155(_NFTMysteryBox).safeTransferFrom(
             address(this),
             msg.sender,
             orders[_orderId].tokenId,
-            1,
+            orders[_orderId].amount,
             ""
         );
 
-        emit Buy(_orderId, msg.sender, orders[_orderId].tokenId, 1, orders[_orderId].pricePerBox);
+        delete orders[_orderId];
+
+        emit Buy(_orderId, msg.sender, orders[_orderId].owner, orders[_orderId].tokenId, orders[_orderId].amount, orders[_orderId].price, orders[_orderId].currency);
     }
 
     function buy(uint256 _orderId) external {
         // check order status
         require(
             orders[_orderId].owner != address(0),
-            "Order does not exist"
-        );
-        require(
-            orders[_orderId].status == Status.SALE,
-            "Order 's status is not SALE"
+            "Order does not exist or is deleted"
         );
         require(
             orders[_orderId].currency != address(0),
@@ -146,41 +122,34 @@ contract ExchangeMH is ERC1155Holder, Ownable {
         );
         require(
             IERC20(orders[_orderId].currency).balanceOf(msg.sender) >=
-                orders[_orderId].pricePerBox,
+                orders[_orderId].price,
             "Buyer does not have enough ERC20 tokens"
         );
-
-        orders[_orderId].remainingAmount = orders[_orderId].remainingAmount - 1;
-        if (orders[_orderId].remainingAmount == 0) {
-            orders[_orderId].status = Status.SOLD;
-        }
 
         TransferHelper.safeTransferFrom(
             orders[_orderId].currency,
             msg.sender,
             orders[_orderId].owner,
-            orders[_orderId].pricePerBox
+            orders[_orderId].price
         );
 
         IERC1155(_NFTMysteryBox).safeTransferFrom(
             address(this),
             msg.sender,
             orders[_orderId].tokenId,
-            1,
+            orders[_orderId].amount,
             ""
         );
 
-        emit Buy(_orderId, msg.sender, orders[_orderId].tokenId, 1, orders[_orderId].pricePerBox);
+        delete orders[_orderId];
+
+        emit Buy(_orderId, msg.sender, orders[_orderId].owner, orders[_orderId].tokenId, orders[_orderId].amount, orders[_orderId].price, orders[_orderId].currency);
     }
 
     function cancelSell(uint256 _orderId) external {
         require(
             orders[_orderId].owner != address(0),
             "Order does not exist"
-        );
-        require(
-            orders[_orderId].status == Status.SALE,
-            "Order 's status is not SALE"
         );
         require(
             orders[_orderId].owner == msg.sender,
@@ -191,13 +160,13 @@ contract ExchangeMH is ERC1155Holder, Ownable {
             address(this),
             msg.sender,
             orders[_orderId].tokenId,
-            orders[_orderId].remainingAmount,
+            orders[_orderId].amount,
             ""
         );
 
         delete orders[_orderId];
 
-        emit CancelSellOrder(_orderId, msg.sender, orders[_orderId].tokenId, orders[_orderId].amount, orders[_orderId].remainingAmount, orders[_orderId].pricePerBox);
+        emit CancelSellOrder(_orderId, orders[_orderId].owner, orders[_orderId].tokenId, orders[_orderId].amount, orders[_orderId].price, orders[_orderId].currency);
     }
     function acceptOffer(uint256 _tokenId, uint256 _amount, uint256 _pricePerBox, address _currency, address _userOffer) external {
         require(IERC1155(_NFTMysteryBox).balanceOf(msg.sender, _tokenId) >= _amount, 'Not sufficient boxes');
