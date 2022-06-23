@@ -1,5 +1,6 @@
 async function main() {
-    const boxAddress = "0x681ACd32811a76794754c4139795e36f53a2F4d4";
+    // const boxAddress = "0x042aF2636F718EB89b810Af75aD30c4139883d4F";
+    const boxAddress = "0x042aF2636F718EB89b810Af75aD30c4139883d4F";
 
     const [deployer] = await ethers.getSigners();
   
@@ -9,6 +10,12 @@ async function main() {
     const exchange = await Exchange.deploy(boxAddress);
   
     console.log("Exhchange address:", exchange.address);
+
+    // approve exchange
+    const box = await ethers.getContractAt("BoxERC1155", boxAddress);
+    await box.connect(deployer).setApprovalForAll(exchange.address, true);
+
+    console.log(await box.isApprovedForAll(deployer.address, exchange.address));
   }
   
   main()
