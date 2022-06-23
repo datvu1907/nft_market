@@ -86,5 +86,12 @@ describe("ExchangeMH", function () {
             await expect(exchange.connect(user2).buyNative(1, options))
                 .to.be.revertedWith("Order requires being paid by erc20 currency, use buy() instead");
         });
+        // function acceptOffer(uint256 _tokenId, uint256 _amount, uint256 _pricePerBox, address _currency, address _userOffer) external {
+        it("Accept an offer", async function () {
+            await exchange.connect(user1).acceptOffer(1, 5, 2, erc20token.address, user2.address);
+
+            expect(await box.balanceOf(user2.address, 1)).to.equal(5);
+            expect(await erc20token.balanceOf(user2.address)).to.equal(1000-10);
+        });
     });
 });
