@@ -197,7 +197,11 @@ contract Exchange is ERC1155Holder, Ownable {
     function getListUserToken()
         external
         view
-        returns (uint256[] memory, uint256[] memory, History[] memory)
+        returns (
+            uint256[] memory,
+            uint256[] memory,
+            History[] memory
+        )
     {
         uint256[] memory listTokenId = INFTMysteryBox(_NFTMysteryBox)
             .getAllTokenIds();
