@@ -121,10 +121,7 @@ contract ExchangeMH is ERC1155Holder, Ownable {
         );
     }
 
-    function buyNative(uint256 _orderId, address _tokenAddress)
-        external
-        payable
-    {
+    function buyNative(uint256 _orderId) external payable {
         // check order status
         require(
             orders[_orderId].owner != address(0),
@@ -145,7 +142,12 @@ contract ExchangeMH is ERC1155Holder, Ownable {
         }
 
         if (_creatorFee != 0) {
-            TransferHelper.safeTransferETH(_adminAddress, creatorFee);
+            TransferHelper.safeTransferETH(
+                _creatorAddress[orders[_orderId].tokenAddress][
+                    orders[_orderId].tokenId
+                ],
+                creatorFee
+            );
         }
 
         TransferHelper.safeTransferETH(
@@ -153,7 +155,7 @@ contract ExchangeMH is ERC1155Holder, Ownable {
             orders[_orderId].price - adminFee - creatorFee
         );
 
-        IERC1155(_tokenAddress).safeTransferFrom(
+        IERC1155(orders[_orderId].tokenAddress).safeTransferFrom(
             address(this),
             msg.sender,
             orders[_orderId].tokenId,
@@ -175,7 +177,7 @@ contract ExchangeMH is ERC1155Holder, Ownable {
     }
 
     // Buy with ERC20 token
-    function buy(uint256 _orderId, address _tokenAddress) external {
+    function buy(uint256 _orderId) external {
         // check order status
         require(
             orders[_orderId].owner != address(0),
@@ -190,15 +192,31 @@ contract ExchangeMH is ERC1155Holder, Ownable {
                 orders[_orderId].price,
             "Buyer does not have enough ERC20 tokens"
         );
+        uint256 adminFee = orders[_orderId].price * (_adminFee / 100);
+        uint256 creatorFee = orders[_orderId].price * (_creatorFee / 100);
+        if (_adminFee != 0) {
+            TransferHelper.safeTransferFrom( orders[_orderId].currency,_adminAddress, msg.sender, adminFee);
+        }
+
+        if (_creatorFee != 0) {
+            TransferHelper.safeTransferFrom(
+                 orders[_orderId].currency,
+                _creatorAddress[orders[_orderId].tokenAddress][
+                    orders[_orderId].tokenId
+                ],
+                 msg.sender,
+                creatorFee
+            );
+        }
 
         TransferHelper.safeTransferFrom(
             orders[_orderId].currency,
             msg.sender,
             orders[_orderId].owner,
-            orders[_orderId].price
+            orders[_orderId].price - adminFee - creatorFee
         );
 
-        IERC1155(_tokenAddress).safeTransferFrom(
+        IERC1155(orders[_orderId].tokenAddress).safeTransferFrom(
             address(this),
             msg.sender,
             orders[_orderId].tokenId,
