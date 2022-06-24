@@ -23,7 +23,8 @@ contract ExchangeMH is ERC1155Holder, Ownable {
         uint256 _tokenId,
         uint256 _amount,
         uint256 _price,
-        address _currency
+        address _currency,
+        address _tokenAddress
     );
     event Buy(
         uint256 indexed _orderId,
@@ -32,7 +33,8 @@ contract ExchangeMH is ERC1155Holder, Ownable {
         uint256 _tokenId,
         uint256 _amount,
         uint256 _price,
-        address _currency
+        address _currency,
+        address _tokenAddress
     );
     event CancelSellOrder(
         uint256 indexed _orderId,
@@ -40,14 +42,26 @@ contract ExchangeMH is ERC1155Holder, Ownable {
         uint256 _tokenId,
         uint256 _amount,
         uint256 _price,
-        address _currency
+        address _currency,
+        address _tokenAddress
+    );
+    event UpdateSellOrder(
+        uint256 indexed _orderId,
+        address indexed _seller,
+        uint256 _tokenId,
+        uint256 _amount,
+        uint256 _oldPrice,
+        uint256 _newPrice,
+        address _currency,
+        address _tokenAddress
     );
     event AcceptOffer(
         address indexed _seller,
         address indexed _buyer,
         uint256 _tokenId,
         uint256 _amount,
-        uint256 _price
+        uint256 _price,
+        address _tokenAddress
     );
 
     struct Order {
@@ -67,7 +81,7 @@ contract ExchangeMH is ERC1155Holder, Ownable {
     address private _adminAddress;
     // creator
     // contract address => tokenId => Creator
-    mapping(address => mapping(uint256 => address)) private _creatorAddress;
+    mapping(address => mapping(uint256 => address)) private _creatorOf;
     // percent fee of admin and creator
     uint256 private _adminFee = 0;
     uint256 private _creatorFee = 0;
@@ -117,7 +131,8 @@ contract ExchangeMH is ERC1155Holder, Ownable {
             order.tokenId,
             order.amount,
             order.price,
-            order.currency
+            order.currency,
+            order.tokenAddress
         );
     }
 
@@ -172,7 +187,8 @@ contract ExchangeMH is ERC1155Holder, Ownable {
             orders[_orderId].tokenId,
             orders[_orderId].amount,
             orders[_orderId].price,
-            orders[_orderId].currency
+            orders[_orderId].currency,
+            orders[_orderId].tokenAddress
         );
     }
 
@@ -233,7 +249,8 @@ contract ExchangeMH is ERC1155Holder, Ownable {
             orders[_orderId].tokenId,
             orders[_orderId].amount,
             orders[_orderId].price,
-            orders[_orderId].currency
+            orders[_orderId].currency,
+            orders[_orderId].tokenAddress
         );
     }
 
@@ -260,7 +277,8 @@ contract ExchangeMH is ERC1155Holder, Ownable {
             orders[_orderId].tokenId,
             orders[_orderId].amount,
             orders[_orderId].price,
-            orders[_orderId].currency
+            orders[_orderId].currency,
+            orders[_orderId].tokenAddress
         );
     }
 
@@ -295,7 +313,8 @@ contract ExchangeMH is ERC1155Holder, Ownable {
             _userOffer,
             _tokenId,
             _amount,
-            _pricePerBox * _amount
+            _pricePerBox * _amount,
+            _tokenAddress
         );
     }
 
@@ -310,7 +329,7 @@ contract ExchangeMH is ERC1155Holder, Ownable {
         address _tokenAddress,
         uint256 _tokenId
     ) external onlyOwner {
-        _creatorAddress[_tokenAddress][_tokenId] = _creator;
+        _creatorOf[_tokenAddress][_tokenId] = _creator;
     }
 
     // set admin fee
@@ -321,5 +340,28 @@ contract ExchangeMH is ERC1155Holder, Ownable {
     // set acreator fee
     function setCreatorFee(uint256 _fee) external onlyOwner {
         _creatorFee = _fee;
+    }
+
+    // update order 's price
+    function updateOrder(uint256 _orderId, uint256 _newPrice) external {
+        require(orders[_orderId].owner != address(0), "Order does not exist");
+        require(
+            orders[_orderId].owner == msg.sender,
+            "Msg sender is not order 's owner"
+        );
+
+        uint256 oldPrice = orders[_orderId].price;
+        orders[_orderId].price = _newPrice;
+
+        emit UpdateSellOrder(
+            _orderId,
+            orders[_orderId].owner,
+            orders[_orderId].tokenId,
+            orders[_orderId].amount,
+            oldPrice,
+            orders[_orderId].price,
+            orders[_orderId].currency,
+            orders[_orderId].tokenAddress
+        );
     }
 }
