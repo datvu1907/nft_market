@@ -2,11 +2,10 @@
 pragma solidity 0.8.0;
 
 import "./libraries/TransferHelper.sol";
-// import "./interfaces/INFTMysteryBox.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
-// import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./libraries/TransferHelper.sol";
@@ -16,7 +15,7 @@ import "hardhat/console.sol";
 contract ExchangeMH is ERC1155Holder, Ownable {
     // using EnumerableSet for EnumerableSet.UintSet;
     using Counters for Counters.Counter;
-
+    using SafeMath for uint256;
     event CreateSellOrder(
         uint256 indexed _orderId,
         address indexed _seller,
@@ -69,7 +68,7 @@ contract ExchangeMH is ERC1155Holder, Ownable {
         uint256 tokenId;
         address owner;
         uint256 amount;
-        uint256 price;
+        uint256 pricePerBox;
         address currency;
     }
 
@@ -83,8 +82,8 @@ contract ExchangeMH is ERC1155Holder, Ownable {
     // contract address => tokenId => Creator
     mapping(address => mapping(uint256 => address)) private _creatorOf;
     // percent fee of admin and creator
-    uint256 private _adminFee = 0;
-    uint256 private _creatorFee = 0;
+    uint256 private _adminFee;
+    uint256 private _creatorFee;
 
     constructor() {}
 
@@ -95,7 +94,7 @@ contract ExchangeMH is ERC1155Holder, Ownable {
         address _tokenAddress,
         uint256 _tokenId,
         uint256 _amount,
-        uint256 _price,
+        uint256 _pricePerBox,
         address _currency
     ) external returns (uint256 orderId) {
         require(
@@ -112,7 +111,7 @@ contract ExchangeMH is ERC1155Holder, Ownable {
             _tokenId,
             msg.sender,
             _amount,
-            _price,
+            _pricePerBox,
             _currency
         );
         orders[orderId] = order;
@@ -130,35 +129,51 @@ contract ExchangeMH is ERC1155Holder, Ownable {
             order.owner,
             order.tokenId,
             order.amount,
-            order.price,
+            order.pricePerBox,
             order.currency,
             order.tokenAddress
         );
     }
 
-    function buyNative(uint256 _orderId) external payable {
+    function buyNative(
+        uint256 _orderId,
+        uint256 _amount,
+        bool payAdminFee,
+        bool payCreatorFee
+    ) external payable {
         // check order status
         require(
             orders[_orderId].owner != address(0),
             "Order does not exist or is deleted"
         );
         require(
-            msg.value == orders[_orderId].price,
+            msg.value == orders[_orderId].pricePerBox.mul(_amount),
             "Buyer did not send correct SPC amount"
         );
         require(
             orders[_orderId].currency == address(0),
             "Order requires being paid by erc20 currency, use buy() instead"
         );
-        uint256 adminFee = orders[_orderId].price * (_adminFee / 100);
-        uint256 creatorFee = orders[_orderId].price * (_creatorFee / 100);
-        if (_adminFee != 0) {
+        require(orders[_orderId].amount >= _amount, "Not enough box to");
+
+        uint256 adminFee = orders[_orderId]
+            .pricePerBox
+            .mul(_amount)
+            .div(100)
+            .mul(_adminFee);
+        uint256 creatorFee = orders[_orderId]
+            .pricePerBox
+            .mul(_amount)
+            .div(100)
+            .mul(_creatorFee);
+
+        if (payAdminFee && _adminFee != 0) {
             TransferHelper.safeTransferETH(_adminAddress, adminFee);
         }
 
-        if (_creatorFee != 0) {
+        if (payCreatorFee && _creatorFee != 0) {
             TransferHelper.safeTransferETH(
-                _creatorAddress[orders[_orderId].tokenAddress][
+                _creatorOf[orders[_orderId].tokenAddress][
                     orders[_orderId].tokenId
                 ],
                 creatorFee
@@ -167,18 +182,21 @@ contract ExchangeMH is ERC1155Holder, Ownable {
 
         TransferHelper.safeTransferETH(
             orders[_orderId].owner,
-            orders[_orderId].price - adminFee - creatorFee
+            orders[_orderId].pricePerBox.mul(_amount) - adminFee - creatorFee
         );
 
         IERC1155(orders[_orderId].tokenAddress).safeTransferFrom(
             address(this),
             msg.sender,
             orders[_orderId].tokenId,
-            orders[_orderId].amount,
+            _amount,
             ""
         );
+        orders[_orderId].amount.sub(_amount);
 
-        delete orders[_orderId];
+        if (orders[_orderId].amount == 0) {
+            delete orders[_orderId];
+        }
 
         emit Buy(
             _orderId,
@@ -186,14 +204,19 @@ contract ExchangeMH is ERC1155Holder, Ownable {
             orders[_orderId].owner,
             orders[_orderId].tokenId,
             orders[_orderId].amount,
-            orders[_orderId].price,
+            orders[_orderId].pricePerBox,
             orders[_orderId].currency,
             orders[_orderId].tokenAddress
         );
     }
 
     // Buy with ERC20 token
-    function buy(uint256 _orderId) external {
+    function buy(
+        uint256 _orderId,
+        uint256 _amount,
+        bool payAdminFee,
+        bool payCreatorFee
+    ) external {
         // check order status
         require(
             orders[_orderId].owner != address(0),
@@ -205,22 +228,38 @@ contract ExchangeMH is ERC1155Holder, Ownable {
         );
         require(
             IERC20(orders[_orderId].currency).balanceOf(msg.sender) >=
-                orders[_orderId].price,
+                orders[_orderId].pricePerBox.mul(_amount),
             "Buyer does not have enough ERC20 tokens"
         );
-        uint256 adminFee = orders[_orderId].price * (_adminFee / 100);
-        uint256 creatorFee = orders[_orderId].price * (_creatorFee / 100);
-        if (_adminFee != 0) {
-            TransferHelper.safeTransferFrom( orders[_orderId].currency,_adminAddress, msg.sender, adminFee);
+        require(orders[_orderId].amount >= _amount, "Not enough box to");
+
+        uint256 adminFee = orders[_orderId]
+            .pricePerBox
+            .mul(_amount)
+            .div(100)
+            .mul(_adminFee);
+        uint256 creatorFee = orders[_orderId]
+            .pricePerBox
+            .mul(_amount)
+            .div(100)
+            .mul(_creatorFee);
+
+        if (payAdminFee && _adminFee != 0) {
+            TransferHelper.safeTransferFrom(
+                orders[_orderId].currency,
+                msg.sender,
+                _adminAddress,
+                adminFee
+            );
         }
 
-        if (_creatorFee != 0) {
+        if (payCreatorFee && _creatorFee != 0) {
             TransferHelper.safeTransferFrom(
-                 orders[_orderId].currency,
-                _creatorAddress[orders[_orderId].tokenAddress][
+                orders[_orderId].currency,
+                msg.sender,
+                _creatorOf[orders[_orderId].tokenAddress][
                     orders[_orderId].tokenId
                 ],
-                 msg.sender,
                 creatorFee
             );
         }
@@ -229,18 +268,22 @@ contract ExchangeMH is ERC1155Holder, Ownable {
             orders[_orderId].currency,
             msg.sender,
             orders[_orderId].owner,
-            orders[_orderId].price - adminFee - creatorFee
+            orders[_orderId].pricePerBox.mul(_amount) - adminFee - creatorFee
         );
 
         IERC1155(orders[_orderId].tokenAddress).safeTransferFrom(
             address(this),
             msg.sender,
             orders[_orderId].tokenId,
-            orders[_orderId].amount,
+            _amount,
             ""
         );
 
-        delete orders[_orderId];
+        orders[_orderId].amount.sub(_amount);
+
+        if (orders[_orderId].amount == 0) {
+            delete orders[_orderId];
+        }
 
         emit Buy(
             _orderId,
@@ -248,7 +291,7 @@ contract ExchangeMH is ERC1155Holder, Ownable {
             orders[_orderId].owner,
             orders[_orderId].tokenId,
             orders[_orderId].amount,
-            orders[_orderId].price,
+            orders[_orderId].pricePerBox,
             orders[_orderId].currency,
             orders[_orderId].tokenAddress
         );
@@ -276,7 +319,7 @@ contract ExchangeMH is ERC1155Holder, Ownable {
             orders[_orderId].owner,
             orders[_orderId].tokenId,
             orders[_orderId].amount,
-            orders[_orderId].price,
+            orders[_orderId].pricePerBox,
             orders[_orderId].currency,
             orders[_orderId].tokenAddress
         );
@@ -343,15 +386,15 @@ contract ExchangeMH is ERC1155Holder, Ownable {
     }
 
     // update order 's price
-    function updateOrder(uint256 _orderId, uint256 _newPrice) external {
+    function updateOrder(uint256 _orderId, uint256 _newPricePerBox) external {
         require(orders[_orderId].owner != address(0), "Order does not exist");
         require(
             orders[_orderId].owner == msg.sender,
             "Msg sender is not order 's owner"
         );
 
-        uint256 oldPrice = orders[_orderId].price;
-        orders[_orderId].price = _newPrice;
+        uint256 oldPrice = orders[_orderId].pricePerBox;
+        orders[_orderId].pricePerBox = _newPricePerBox;
 
         emit UpdateSellOrder(
             _orderId,
@@ -359,7 +402,7 @@ contract ExchangeMH is ERC1155Holder, Ownable {
             orders[_orderId].tokenId,
             orders[_orderId].amount,
             oldPrice,
-            orders[_orderId].price,
+            orders[_orderId].pricePerBox,
             orders[_orderId].currency,
             orders[_orderId].tokenAddress
         );
