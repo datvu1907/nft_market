@@ -54,6 +54,16 @@ contract ExchangeMH is ERC1155Holder, Ownable {
         address _currency,
         address _tokenAddress
     );
+    event IncreaseAmount(
+        uint256 indexed _orderId,
+        address indexed _seller,
+        uint256 _tokenId,
+        uint256 _oldAmount,
+        uint256 _newAmount,
+        uint256 _pricePerBox,
+        address _currency,
+        address _tokenAddress
+    );
     event AcceptOffer(
         address indexed _seller,
         address indexed _buyer,
@@ -402,6 +412,42 @@ contract ExchangeMH is ERC1155Holder, Ownable {
             orders[_orderId].tokenId,
             orders[_orderId].amount,
             oldPrice,
+            orders[_orderId].pricePerBox,
+            orders[_orderId].currency,
+            orders[_orderId].tokenAddress
+        );
+    }
+
+    function increaseAmount(uint256 _orderId, uint256 _amountToAdd) external {
+        require(orders[_orderId].owner != address(0), "Order does not exist");
+        require(
+            orders[_orderId].owner == msg.sender,
+            "Msg sender is not order 's owner"
+        );
+        require(
+            IERC1155(orders[_orderId].tokenAddress).balanceOf(msg.sender, orders[_orderId].tokenId) >= _amountToAdd,
+            "Not sufficient boxes to add"
+        );
+
+        // increaseamount here
+        uint256 oldAmount = orders[_orderId].amount;
+        orders[_orderId].amount = orders[_orderId].amount.add(_amountToAdd);
+
+        // transfer here
+        IERC1155(orders[_orderId].tokenAddress).safeTransferFrom(
+            msg.sender,
+            address(this),
+            orders[_orderId].tokenId,
+            _amountToAdd,
+            ""
+        );
+
+        emit IncreaseAmount(
+            _orderId,
+            orders[_orderId].owner,
+            orders[_orderId].tokenId,
+            oldAmount,
+            orders[_orderId].amount,
             orders[_orderId].pricePerBox,
             orders[_orderId].currency,
             orders[_orderId].tokenAddress

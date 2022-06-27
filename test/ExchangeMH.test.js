@@ -92,13 +92,32 @@ describe("ExchangeMH", function () {
       expect(await erc20token.balanceOf(admin.address)).to.equal(5);
     });
 
-    // it("Order is deleted after buying", async function () {
-    //   await exchange.connect(user1).sell(1, 15, 7, erc20token.address);
-    //   await exchange.connect(user2).buy(1);
+    it("updateOrder(): change price of order", async function () {
+      await exchange
+        .connect(user1)
+        .sell(box.address, 1, 15, 7, erc20token.address);
+      await exchange.connect(user1).updateOrder(1, 14);
 
-    //   const orderInfo = await exchange.orders(1);
-    //   expect(orderInfo.owner).to.equal(ethers.constants.AddressZero);
-    // });
+      const order = await exchange.orders(1);
+      expect(order.pricePerBox).to.equal(14);
+    });
+
+    it("increaseAmount(): increase amount of boxes", async function () {
+      await exchange
+        .connect(user1)
+        .sell(box.address, 1, 12, 7, erc20token.address);
+
+      const boxOfExchangeBefore = await box.balanceOf(exchange.address, 1);
+      const amountToAdd = 4;
+
+      await exchange.connect(user1).increaseAmount(1, amountToAdd);
+
+      const order = await exchange.orders(1);
+      expect(order.amount).to.equal(16); // 12 + 4
+      expect(await box.balanceOf(exchange.address, 1)).to.equal(
+        boxOfExchangeBefore.add(amountToAdd)
+      );
+    });
 
     // it("Revert if buyer pays ERC20 token but seller wants native token", async function () {
     //   const msgValue = ethers.utils.parseEther("1.0"); // price = 1 ether
