@@ -9,6 +9,7 @@ describe("ExchangeMH", function () {
 
   let exchange;
   let box;
+  let nft;
   let erc20token;
 
   beforeEach(async function () {
@@ -26,6 +27,9 @@ describe("ExchangeMH", function () {
     );
     box = await NFTMysteryBox.deploy();
 
+    const NFT721 = await ethers.getContractFactory("NFT721", admin);
+    nft = await NFT721.deploy();
+
     const ExchangeMH = await ethers.getContractFactory("ExchangeMH", admin);
     exchange = await ExchangeMH.deploy();
 
@@ -35,9 +39,11 @@ describe("ExchangeMH", function () {
     await erc20token.connect(admin).addMinter(admin.address);
     await erc20token.connect(admin).mint(user2.address, erc20tokenAmount);
     await box.connect(admin).mint(user1.address, 1, boxAmount, "0x00");
+    await nft.connect(admin).mint(user1.address, 1);
 
     await erc20token.connect(user2).approve(exchange.address, erc20tokenAmount);
     await box.connect(user1).setApprovalForAll(exchange.address, true);
+    await nft.connect(user1).setApprovalForAll(exchange.address, true);
 
     await exchange.connect(admin).setAdminAddress(admin.address);
     await exchange
@@ -47,7 +53,7 @@ describe("ExchangeMH", function () {
     await exchange.connect(admin).setCreatorFee(10);
   });
 
-  describe("Exchange functions", function () {
+  describe("Exchange ERC1155 functions", function () {
     // it("Emit CreateSellOrder event", async function () {
     //   await expect(exchange.connect(user1).sell(1, 15, 7, erc20token.address))
     //     .to.emit(exchange, "CreateSellOrder")
@@ -92,6 +98,25 @@ describe("ExchangeMH", function () {
       expect(await erc20token.balanceOf(admin.address)).to.equal(5);
     });
 
+    it("Accept offer", async function () {
+      await exchange
+        .connect(user1)
+        .acceptOffer(
+          box.address,
+          1,
+          10,
+          100,
+          erc20token.address,
+          user2.address,
+          true,
+          false
+        );
+      const user1Balance = await erc20token.balanceOf(user1.address);
+      const user2NFTAmount = await box.balanceOf(user2.address, 1);
+      expect(user1Balance).to.equal(95);
+      expect(user2NFTAmount).to.equals(10);
+    });
+
     // it("Order is deleted after buying", async function () {
     //   await exchange.connect(user1).sell(1, 15, 7, erc20token.address);
     //   await exchange.connect(user2).buy(1);
@@ -132,4 +157,50 @@ describe("ExchangeMH", function () {
     //   expect(await erc20token.balanceOf(user2.address)).to.equal(1000 - 10);
     // });
   });
+
+  // describe("Exchange ERC721 functions", function () {
+  //   // it("Emit CreateSellOrder event", async function () {
+  //   //   await expect(exchange.connect(user1).sell(1, 15, 7, erc20token.address))
+  //   //     .to.emit(exchange, "CreateSellOrder")
+  //   //     .withArgs(1, user1.address, 1, 15, 7, erc20token.address);
+  //   //   // orderId, order.owner, order.tokenId, order.amount, order.price, order.currency
+  //   // });
+
+  //   it("Buy and sell natively", async function () {
+  //     const adminOldBalance = await admin.getBalance();
+  //     const creatorOldBalance = await creator.getBalance();
+  //     const pricePerBox = ethers.utils.parseEther("0.1");
+  //     const msgValue = ethers.utils.parseEther("1"); // price = 1 ether
+  //     const options = { value: msgValue };
+  //     await exchange
+  //       .connect(user1)
+  //       .sell721(nft.address, 1, pricePerBox, ethers.constants.AddressZero);
+  //     await exchange.connect(user2).buy721Native(1, true, true, options);
+
+  //     // const balance = await user2.getBalance();
+  //     // expect(balance).to.be.lt(ethers.utils.parseEther("9999.0"));
+  //     // expect(balance).to.be.gt(ethers.utils.parseEther("9998.99"));
+  //     // const adminNewBalance = await admin.getBalance();
+  //     // const creatorNewBalance = await creator.getBalance();
+  //     // expect(adminNewBalance.sub(adminOldBalance)).to.equal(
+  //     //   ethers.utils.parseEther("0.05")
+  //     // );
+  //     // expect(creatorNewBalance.sub(creatorOldBalance)).to.equal(
+  //     //   ethers.utils.parseEther("0.1")
+  //     // );
+  //   });
+
+  //   // it("Buy and sell using erc20", async function () {
+  //   //   await exchange
+  //   //     .connect(user1)
+  //   //     .sell721(box.address, 1, 10, erc20token.address);
+  //   //   await exchange.connect(user2).buy721(1, true, true);
+
+  //   //   expect(await erc20token.balanceOf(user2.address)).to.equal(1000 - 100);
+  //   //   expect(await box.balanceOf(user2.address, 1)).to.equal(10);
+
+  //   //   expect(await erc20token.balanceOf(creator.address)).to.equal(10);
+  //   //   expect(await erc20token.balanceOf(admin.address)).to.equal(5);
+  //   // });
+  // });
 });

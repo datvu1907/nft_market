@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: MIT
-pragma solidity 0.8.0;
+pragma solidity 0.8.1;
 
 import "./interfaces/INFTMysteryBox.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
