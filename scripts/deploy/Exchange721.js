@@ -6,16 +6,16 @@ async function main() {
 
   console.log("Deploying contracts with the account:", deployer.address);
 
-  const Exchange = await ethers.getContractFactory("ExchangeMH");
+  const Exchange = await ethers.getContractFactory("Exchange721");
   const exchange = await Exchange.deploy();
 
   console.log("Exchange address:", exchange.address);
-
-  // approve exchange
-  const box = await ethers.getContractAt("BoxERC1155", boxAddress);
-  await box.connect(deployer).setApprovalForAll(exchange.address, true);
   await exchange.connect(deployer).addOperator(deployer.address);
-  console.log(await box.isApprovedForAll(deployer.address, exchange.address));
+  // approve exchange
+  //   const box = await ethers.getContractAt("BoxERC1155", boxAddress);
+  //   await box.connect(deployer).setApprovalForAll(exchange.address, true);
+
+  //   console.log(await box.isApprovedForAll(deployer.address, exchange.address));
 }
 
 main()

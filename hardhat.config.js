@@ -8,6 +8,9 @@ require("@nomiclabs/hardhat-waffle");
 module.exports = {
   solidity: "0.8.1",
   networks: {
+    hardhat: {
+      allowUnlimitedContractSize: true,
+    },
     spectretestnet: {
       url: "https://testnet.spectre-rpc.io",
       chainId: 55,
