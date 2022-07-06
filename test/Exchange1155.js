@@ -143,6 +143,15 @@ describe("ExchangeMH", function () {
       expect(user2NFTAmount).to.equals(10);
     });
 
+    it.only("Burn Box", async function () {
+      await exchange.connect(user1).revealBox(box.address, 1, 1);
+      // const user1Balance = await erc20token.balanceOf(user1.address);
+      const user1NFTAmount = await box.balanceOf(user1.address, 1);
+      const NFTAmount = await box.balanceOf(exchange.address, 1);
+      expect(user1NFTAmount).to.equal(19);
+      expect(NFTAmount).to.equal(0);
+      // expect(user2NFTAmount).to.equals(10);
+    });
     // it("Revert if buyer pays ERC20 token but seller wants native token", async function () {
     //   const msgValue = ethers.utils.parseEther("1.0"); // price = 1 ether
     //   await exchange

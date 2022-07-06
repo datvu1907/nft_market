@@ -59,12 +59,27 @@ contract Exchange721 is ERC721Holder, OwnerOperator {
         address _tokenAddress
     );
 
+    event Bid(
+        address indexed owner,
+        address indexed winner,
+        address _tokenAddress,
+        uint256 _tokenId,
+        uint256 _price,
+        address _currency
+    );
+
     struct Order {
         address tokenAddress;
         uint256 tokenId;
         address owner;
         uint256 price;
         address currency;
+    }
+
+    struct UserBid {
+        address userAddress;
+        uint256 price;
+        uint256 bidId;
     }
 
     // orderID => order
@@ -109,8 +124,7 @@ contract Exchange721 is ERC721Holder, OwnerOperator {
         IERC721(_tokenAddress).safeTransferFrom(
             msg.sender,
             address(this),
-            _tokenId,
-            ""
+            _tokenId
         );
 
         emit CreateSellOrder(
@@ -180,8 +194,7 @@ contract Exchange721 is ERC721Holder, OwnerOperator {
         IERC721(orders[_orderId].tokenAddress).safeTransferFrom(
             address(this),
             msg.sender,
-            orders[_orderId].tokenId,
-            ""
+            orders[_orderId].tokenId
         );
 
         delete orders[_orderId];
@@ -242,8 +255,7 @@ contract Exchange721 is ERC721Holder, OwnerOperator {
         IERC721(orders[_orderId].tokenAddress).safeTransferFrom(
             address(this),
             msg.sender,
-            orders[_orderId].tokenId,
-            ""
+            orders[_orderId].tokenId
         );
 
         emit Buy(
@@ -305,8 +317,7 @@ contract Exchange721 is ERC721Holder, OwnerOperator {
         IERC721(_tokenAddress).safeTransferFrom(
             msg.sender,
             _userOffer,
-            _tokenId,
-            ""
+            _tokenId
         );
         emit AcceptOffer(
             msg.sender,
@@ -329,8 +340,7 @@ contract Exchange721 is ERC721Holder, OwnerOperator {
         IERC721(_tokenAddress).safeTransferFrom(
             address(this),
             msg.sender,
-            orders[_orderId].tokenId,
-            ""
+            orders[_orderId].tokenId
         );
 
         emit CancelSellOrder(
@@ -389,5 +399,83 @@ contract Exchange721 is ERC721Holder, OwnerOperator {
             orders[_orderId].currency,
             orders[_orderId].tokenAddress
         );
+    }
+
+    // end Bid when the pice is higher than normal price
+    function bidOverPrice(uint256 _orderId, uint256 _price) external {
+        require(
+            _price >= orders[_orderId].price,
+            "Price must be equal or higher"
+        );
+        require(
+            address(msg.sender).balance >= _price,
+            "User do not have enough money"
+        );
+
+        IERC20(orders[_orderId].currency).transferFrom(
+            msg.sender,
+            orders[_orderId].owner,
+            _price
+        );
+
+        IERC721(orders[_orderId].tokenAddress).safeTransferFrom(
+            address(this),
+            msg.sender,
+            orders[_orderId].tokenId
+        );
+
+        emit Bid(
+            orders[_orderId].owner,
+            msg.sender,
+            orders[_orderId].tokenAddress,
+            orders[_orderId].tokenId,
+            _price,
+            orders[_orderId].currency
+        );
+        delete orders[_orderId];
+    }
+
+    // end Bid when time is end
+    function bidOverTime(uint256 _orderId, UserBid[] memory _listUserBid)
+        external
+        onlyOperator
+        returns (UserBid memory)
+    {
+        address winner;
+        uint256 finalPrice;
+        uint256 winnerBidId;
+        for (uint256 i = _listUserBid.length - 1; i >= 0; i--) {
+            if (
+                address(_listUserBid[i].userAddress).balance >=
+                _listUserBid[i].price
+            ) {
+                winner = _listUserBid[i].userAddress;
+                finalPrice = _listUserBid[i].price;
+                winnerBidId = _listUserBid[i].bidId;
+                break;
+            }
+        }
+
+        IERC20(orders[_orderId].currency).transferFrom(
+            winner,
+            orders[_orderId].owner,
+            finalPrice
+        );
+        IERC721(orders[_orderId].tokenAddress).safeTransferFrom(
+            address(this),
+            winner,
+            orders[_orderId].tokenId
+        );
+
+        emit Bid(
+            orders[_orderId].owner,
+            winner,
+            orders[_orderId].tokenAddress,
+            orders[_orderId].tokenId,
+            finalPrice,
+            orders[_orderId].currency
+        );
+        delete orders[_orderId];
+        return UserBid(winner, finalPrice, winnerBidId);
     }
 }

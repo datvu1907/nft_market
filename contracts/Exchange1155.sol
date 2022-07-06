@@ -7,6 +7,8 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "./abstracts/OwnerOperator.sol";
 import "hardhat/console.sol";
 
@@ -78,6 +80,11 @@ contract ExchangeMH is ERC1155Holder, OwnerOperator {
         uint256 amount;
         uint256 pricePerBox;
         address currency;
+    }
+
+    struct NFT {
+        address nftAddress;
+        uint256 nftId;
     }
 
     // orderID => order
@@ -473,5 +480,35 @@ contract ExchangeMH is ERC1155Holder, OwnerOperator {
             orders[_orderId].currency,
             orders[_orderId].tokenAddress
         );
+    }
+
+    function revealBox(
+        address _tokenAddress,
+        uint256 _tokenId,
+        uint256 _amount,
+        address nftOwner,
+        NFT[] memory _listNFT
+    ) external {
+        require(
+            IERC1155(_tokenAddress).balanceOf(msg.sender, _tokenId) >= _amount,
+            "Not sufficient boxes"
+        );
+
+        IERC1155(_tokenAddress).safeTransferFrom(
+            msg.sender,
+            address(this),
+            _tokenId,
+            _amount,
+            ""
+        );
+
+        ERC1155Burnable(_tokenAddress).burn(address(this), _tokenId, _amount);
+        for (uint256 i = 0; i < _listNFT.length; i++) {
+            IERC721(_listNFT[i].nftAddress).safeTransferFrom(
+                nftOwner,
+                msg.sender,
+                _listNFT[i].nftId
+            );
+        }
     }
 }

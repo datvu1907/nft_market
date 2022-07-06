@@ -1,5 +1,4 @@
 async function main() {
-  const boxAddress = "0x042aF2636F718EB89b810Af75aD30c4139883d4F";
   // const boxAddress = "0x5FbDB2315678afecb367f032d93F642f64180aa3"; // this address is used for testing on local hardhat network
 
   const [deployer] = await ethers.getSigners();

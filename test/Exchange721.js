@@ -5,6 +5,7 @@ describe("Exchange721", function () {
   let admin;
   let user1;
   let user2;
+  let user3;
   let creator;
   let operator;
 
@@ -13,7 +14,7 @@ describe("Exchange721", function () {
   let erc20token;
 
   beforeEach(async function () {
-    [admin, user1, user2, operator, creator] = await ethers.getSigners();
+    [admin, user1, user2, user3, operator, creator] = await ethers.getSigners();
 
     const ERC20TestToken = await ethers.getContractFactory(
       "ERC20TestToken",
@@ -34,9 +35,11 @@ describe("Exchange721", function () {
 
     await erc20token.connect(admin).addMinter(admin.address);
     await erc20token.connect(admin).mint(user2.address, erc20tokenAmount);
+    await erc20token.connect(admin).mint(user3.address, erc20tokenAmount);
     await nft.connect(admin).mint(user1.address, 1);
 
     await erc20token.connect(user2).approve(exchange.address, erc20tokenAmount);
+    await erc20token.connect(user3).approve(exchange.address, erc20tokenAmount);
     await nft.connect(user1).setApprovalForAll(exchange.address, true);
 
     await exchange.connect(admin).setAdminAddress(admin.address);
@@ -106,5 +109,27 @@ describe("Exchange721", function () {
     const user2NFTAmount = await nft.balanceOf(user2.address);
     expect(user1Balance).to.equal(85);
     expect(user2NFTAmount).to.equals(1);
+  });
+
+  it("Bid over price", async function () {
+    await exchange.connect(user1).sell(nft.address, 1, 10, erc20token.address);
+    await exchange.connect(user2).bidOverPrice(1, 100);
+    const user1Balance = await erc20token.balanceOf(user1.address);
+    const user2NFTAmount = await nft.balanceOf(user2.address);
+    expect(user1Balance).to.equal(100);
+    expect(user2NFTAmount).to.equals(1);
+  });
+
+  it.only("Check bid when time is end", async function () {
+    await exchange.connect(user1).sell(nft.address, 1, 10, erc20token.address);
+    await exchange.connect(operator).bidOverTime(1, [
+      [user2.address, 10, 1],
+      [user3.address, 11, 2],
+    ]);
+    const user1Balance = await erc20token.balanceOf(user1.address);
+    const user3NFTAmount = await nft.balanceOf(user3.address);
+    expect(user1Balance).to.equal(11);
+    expect(user3NFTAmount).to.equals(1);
+    expect(await nft.balanceOf(user1.address)).to.equals(0);
   });
 });
