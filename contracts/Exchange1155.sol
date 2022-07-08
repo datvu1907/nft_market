@@ -207,10 +207,6 @@ contract ExchangeMH is ERC1155Holder, OwnerOperator {
         );
         orders[_orderId].amount.sub(_amount);
 
-        if (orders[_orderId].amount == 0) {
-            delete orders[_orderId];
-        }
-
         emit Buy(
             _orderId,
             msg.sender,
@@ -289,6 +285,7 @@ contract ExchangeMH is ERC1155Holder, OwnerOperator {
             _amount,
             ""
         );
+        orders[_orderId].amount.sub(_amount);
 
         emit Buy(
             _orderId,
@@ -300,11 +297,6 @@ contract ExchangeMH is ERC1155Holder, OwnerOperator {
             orders[_orderId].currency,
             orders[_orderId].tokenAddress
         );
-        orders[_orderId].amount.sub(_amount);
-
-        if (orders[_orderId].amount == 0) {
-            delete orders[_orderId];
-        }
     }
 
     // cancel sell ERC1155
@@ -349,6 +341,11 @@ contract ExchangeMH is ERC1155Holder, OwnerOperator {
         require(
             IERC1155(_tokenAddress).balanceOf(msg.sender, _tokenId) >= _amount,
             "Not sufficient boxes"
+        );
+
+        require(
+            IERC20(_currency).balanceOf(_userOffer) >= _price,
+            "Buyer does not have enough ERC20 tokens"
         );
 
         uint256 adminFee;
