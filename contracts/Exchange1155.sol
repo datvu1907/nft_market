@@ -205,7 +205,7 @@ contract ExchangeMH is ERC1155Holder, OwnerOperator {
             _amount,
             ""
         );
-        orders[_orderId].amount.sub(_amount);
+        orders[_orderId].amount -= _amount;
 
         emit Buy(
             _orderId,
@@ -285,7 +285,7 @@ contract ExchangeMH is ERC1155Holder, OwnerOperator {
             _amount,
             ""
         );
-        orders[_orderId].amount.sub(_amount);
+        orders[_orderId].amount -= _amount;
 
         emit Buy(
             _orderId,

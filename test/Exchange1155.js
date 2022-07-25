@@ -88,7 +88,7 @@ describe("ExchangeMH", function () {
     it("Buy and sell using erc20", async function () {
       await exchange
         .connect(user1)
-        .sell(box.address, 1, 10, 10, erc20token.address);
+        .sell(box.address, 1, 15, 10, erc20token.address);
       await exchange.connect(user2).buy(1, 10, true, true);
 
       expect(await erc20token.balanceOf(user2.address)).to.equal(1000 - 100);

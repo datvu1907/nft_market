@@ -197,8 +197,6 @@ contract Exchange721 is ERC721Holder, OwnerOperator {
             orders[_orderId].tokenId
         );
 
-        delete orders[_orderId];
-
         emit Buy(
             _orderId,
             msg.sender,
@@ -267,8 +265,6 @@ contract Exchange721 is ERC721Holder, OwnerOperator {
             orders[_orderId].currency,
             orders[_orderId].tokenAddress
         );
-
-        delete orders[_orderId];
     }
 
     function acceptOffer(
@@ -351,8 +347,6 @@ contract Exchange721 is ERC721Holder, OwnerOperator {
             orders[_orderId].currency,
             orders[_orderId].tokenAddress
         );
-
-        delete orders[_orderId];
     }
 
     // set address of admin
@@ -475,7 +469,6 @@ contract Exchange721 is ERC721Holder, OwnerOperator {
             finalPrice,
             orders[_orderId].currency
         );
-        delete orders[_orderId];
         return UserBid(winner, finalPrice, winnerBidId);
     }
 }

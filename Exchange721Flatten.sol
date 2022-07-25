@@ -1,3 +1,5 @@
+// Sources flattened with hardhat v2.9.7 https://hardhat.org
+
 // File contracts/libraries/TransferHelper.sol
 
 //SPDX-License-Identifier: MIT
@@ -61,7 +63,6 @@ library TransferHelper {
 }
 
 // File @openzeppelin/contracts/utils/Counters.sol@v4.6.0
-
 // OpenZeppelin Contracts v4.4.1 (utils/Counters.sol)
 
 pragma solidity ^0.8.0;
@@ -107,6 +108,7 @@ library Counters {
 
 // File @openzeppelin/contracts/token/ERC20/IERC20.sol@v4.6.0
 
+// SPDX-License-Identifier: MIT
 // OpenZeppelin Contracts (last updated v4.6.0) (token/ERC20/IERC20.sol)
 
 pragma solidity ^0.8.0;
@@ -198,6 +200,7 @@ interface IERC20 {
 
 // File @openzeppelin/contracts/utils/math/SafeMath.sol@v4.6.0
 
+// SPDX-License-Identifier: MIT
 // OpenZeppelin Contracts (last updated v4.6.0) (utils/math/SafeMath.sol)
 
 pragma solidity ^0.8.0;
@@ -447,6 +450,7 @@ library SafeMath {
 
 // File @openzeppelin/contracts/utils/Context.sol@v4.6.0
 
+// SPDX-License-Identifier: MIT
 // OpenZeppelin Contracts v4.4.1 (utils/Context.sol)
 
 pragma solidity ^0.8.0;
@@ -473,6 +477,7 @@ abstract contract Context {
 
 // File @openzeppelin/contracts/access/Ownable.sol@v4.6.0
 
+// SPDX-License-Identifier: MIT
 // OpenZeppelin Contracts v4.4.1 (access/Ownable.sol)
 
 pragma solidity ^0.8.0;
@@ -555,6 +560,7 @@ abstract contract Ownable is Context {
 
 // File @openzeppelin/contracts/utils/introspection/IERC165.sol@v4.6.0
 
+// SPDX-License-Identifier: MIT
 // OpenZeppelin Contracts v4.4.1 (utils/introspection/IERC165.sol)
 
 pragma solidity ^0.8.0;
@@ -582,6 +588,7 @@ interface IERC165 {
 
 // File @openzeppelin/contracts/token/ERC721/IERC721.sol@v4.6.0
 
+// SPDX-License-Identifier: MIT
 // OpenZeppelin Contracts (last updated v4.6.0) (token/ERC721/IERC721.sol)
 
 pragma solidity ^0.8.0;
@@ -743,6 +750,7 @@ interface IERC721 is IERC165 {
 
 // File @openzeppelin/contracts/token/ERC721/IERC721Receiver.sol@v4.6.0
 
+// SPDX-License-Identifier: MIT
 // OpenZeppelin Contracts (last updated v4.6.0) (token/ERC721/IERC721Receiver.sol)
 
 pragma solidity ^0.8.0;
@@ -772,6 +780,7 @@ interface IERC721Receiver {
 
 // File @openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol@v4.6.0
 
+// SPDX-License-Identifier: MIT
 // OpenZeppelin Contracts v4.4.1 (token/ERC721/utils/ERC721Holder.sol)
 
 pragma solidity ^0.8.0;
@@ -798,8 +807,49 @@ contract ERC721Holder is IERC721Receiver {
     }
 }
 
+// File contracts/abstracts/OwnerOperator.sol
+
+//SPDX-License-Identifier: MIT
+pragma solidity 0.8.1;
+
+abstract contract OwnerOperator is Ownable {
+    mapping(address => bool) public operators;
+
+    constructor() Ownable() {}
+
+    modifier operatorOrOwner() {
+        require(
+            operators[msg.sender] || owner() == msg.sender,
+            "OwnerOperator: !operator, !owner"
+        );
+        _;
+    }
+
+    modifier onlyOperator() {
+        require(operators[msg.sender], "OwnerOperator: !operator");
+        _;
+    }
+
+    function addOperator(address operator) external virtual onlyOwner {
+        require(
+            operator != address(0),
+            "OwnerOperator: operator is the zero address"
+        );
+        operators[operator] = true;
+    }
+
+    function removeOperator(address operator) external virtual onlyOwner {
+        require(
+            operator != address(0),
+            "OwnerOperator: operator is the zero address"
+        );
+        operators[operator] = false;
+    }
+}
+
 // File hardhat/console.sol@v2.9.7
 
+// SPDX-License-Identifier: MIT
 pragma solidity >=0.4.22 <0.9.0;
 
 library console {
@@ -5959,9 +6009,10 @@ library console {
 
 // File contracts/Exchange721.sol
 
+//SPDX-License-Identifier: MIT
 pragma solidity 0.8.1;
 
-contract Exchange721 is ERC721Holder, Ownable {
+contract Exchange721 is ERC721Holder, OwnerOperator {
     // using EnumerableSet for EnumerableSet.UintSet;
     using Counters for Counters.Counter;
     using SafeMath for uint256;
@@ -6008,12 +6059,27 @@ contract Exchange721 is ERC721Holder, Ownable {
         address _tokenAddress
     );
 
+    event Bid(
+        address indexed owner,
+        address indexed winner,
+        address _tokenAddress,
+        uint256 _tokenId,
+        uint256 _price,
+        address _currency
+    );
+
     struct Order {
         address tokenAddress;
         uint256 tokenId;
         address owner;
         uint256 price;
         address currency;
+    }
+
+    struct UserBid {
+        address userAddress;
+        uint256 price;
+        uint256 bidId;
     }
 
     // orderID => order
@@ -6058,8 +6124,7 @@ contract Exchange721 is ERC721Holder, Ownable {
         IERC721(_tokenAddress).safeTransferFrom(
             msg.sender,
             address(this),
-            _tokenId,
-            ""
+            _tokenId
         );
 
         emit CreateSellOrder(
@@ -6129,8 +6194,7 @@ contract Exchange721 is ERC721Holder, Ownable {
         IERC721(orders[_orderId].tokenAddress).safeTransferFrom(
             address(this),
             msg.sender,
-            orders[_orderId].tokenId,
-            ""
+            orders[_orderId].tokenId
         );
 
         delete orders[_orderId];
@@ -6191,8 +6255,7 @@ contract Exchange721 is ERC721Holder, Ownable {
         IERC721(orders[_orderId].tokenAddress).safeTransferFrom(
             address(this),
             msg.sender,
-            orders[_orderId].tokenId,
-            ""
+            orders[_orderId].tokenId
         );
 
         emit Buy(
@@ -6254,8 +6317,7 @@ contract Exchange721 is ERC721Holder, Ownable {
         IERC721(_tokenAddress).safeTransferFrom(
             msg.sender,
             _userOffer,
-            _tokenId,
-            ""
+            _tokenId
         );
         emit AcceptOffer(
             msg.sender,
@@ -6278,8 +6340,7 @@ contract Exchange721 is ERC721Holder, Ownable {
         IERC721(_tokenAddress).safeTransferFrom(
             address(this),
             msg.sender,
-            orders[_orderId].tokenId,
-            ""
+            orders[_orderId].tokenId
         );
 
         emit CancelSellOrder(
@@ -6295,7 +6356,7 @@ contract Exchange721 is ERC721Holder, Ownable {
     }
 
     // set address of admin
-    function setAdminAddress(address _admin) external onlyOwner {
+    function setAdminAddress(address _admin) external onlyOperator {
         _adminAddress = _admin;
     }
 
@@ -6304,17 +6365,17 @@ contract Exchange721 is ERC721Holder, Ownable {
         address _creator,
         address _tokenAddress,
         uint256 _tokenId
-    ) external onlyOwner {
+    ) external onlyOperator {
         _creatorOf[_tokenAddress][_tokenId] = _creator;
     }
 
     // set admin fee
-    function setAdminFee(uint256 _fee) external onlyOwner {
+    function setAdminFee(uint256 _fee) external onlyOperator {
         _adminFee = _fee;
     }
 
     // set acreator fee
-    function setCreatorFee(uint256 _fee) external onlyOwner {
+    function setCreatorFee(uint256 _fee) external onlyOperator {
         _creatorFee = _fee;
     }
 
@@ -6338,5 +6399,83 @@ contract Exchange721 is ERC721Holder, Ownable {
             orders[_orderId].currency,
             orders[_orderId].tokenAddress
         );
+    }
+
+    // end Bid when the pice is higher than normal price
+    function bidOverPrice(uint256 _orderId, uint256 _price) external {
+        require(
+            _price >= orders[_orderId].price,
+            "Price must be equal or higher"
+        );
+        require(
+            address(msg.sender).balance >= _price,
+            "User do not have enough money"
+        );
+
+        IERC20(orders[_orderId].currency).transferFrom(
+            msg.sender,
+            orders[_orderId].owner,
+            _price
+        );
+
+        IERC721(orders[_orderId].tokenAddress).safeTransferFrom(
+            address(this),
+            msg.sender,
+            orders[_orderId].tokenId
+        );
+
+        emit Bid(
+            orders[_orderId].owner,
+            msg.sender,
+            orders[_orderId].tokenAddress,
+            orders[_orderId].tokenId,
+            _price,
+            orders[_orderId].currency
+        );
+        delete orders[_orderId];
+    }
+
+    // end Bid when time is end
+    function bidOverTime(uint256 _orderId, UserBid[] memory _listUserBid)
+        external
+        onlyOperator
+        returns (UserBid memory)
+    {
+        address winner;
+        uint256 finalPrice;
+        uint256 winnerBidId;
+        for (uint256 i = _listUserBid.length - 1; i >= 0; i--) {
+            if (
+                address(_listUserBid[i].userAddress).balance >=
+                _listUserBid[i].price
+            ) {
+                winner = _listUserBid[i].userAddress;
+                finalPrice = _listUserBid[i].price;
+                winnerBidId = _listUserBid[i].bidId;
+                break;
+            }
+        }
+
+        IERC20(orders[_orderId].currency).transferFrom(
+            winner,
+            orders[_orderId].owner,
+            finalPrice
+        );
+        IERC721(orders[_orderId].tokenAddress).safeTransferFrom(
+            address(this),
+            winner,
+            orders[_orderId].tokenId
+        );
+
+        emit Bid(
+            orders[_orderId].owner,
+            winner,
+            orders[_orderId].tokenAddress,
+            orders[_orderId].tokenId,
+            finalPrice,
+            orders[_orderId].currency
+        );
+        delete orders[_orderId];
+        return UserBid(winner, finalPrice, winnerBidId);
     }
 }
